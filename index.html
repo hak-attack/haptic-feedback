@@ -88,8 +88,39 @@
       // Try a short crisp pattern
       const didVibrate = vibrate([8, 16, 8]);
       if (!didVibrate) {
+        // iOS 17.4+ workaround: hidden checkbox trick for system haptics
+        if (isiOS) {
+          tryIOSCheckboxHaptic();
+        }
         // Fallback: quick audio click as tactile proxy + tiny visual press effect
         playClickSound(18, 240);
+      }
+    }
+
+    function tryIOSCheckboxHaptic() {
+      // iOS 17.4+ workaround: create hidden checkbox and simulate interaction
+      // This taps into system-level haptic events for form controls
+      try {
+        const el = document.createElement('input');
+        el.setAttribute('type', 'checkbox');
+        el.setAttribute('style', 'position:absolute;visibility:hidden;pointer-events:none;');
+        el.setAttribute('inputmode', 'none');
+        el.setAttribute('tabindex', '-1');
+
+        el.addEventListener('click', () => {
+          el.remove(); // Clean up immediately
+        });
+
+        document.body.appendChild(el);
+        el.focus();
+        el.click();
+        
+        // Cleanup fallback in case click event doesn't fire
+        setTimeout(() => {
+          if (document.body.contains(el)) el.remove();
+        }, 100);
+      } catch (e) {
+        // Silently fail if checkbox trick doesn't work
       }
     }
 
@@ -100,7 +131,7 @@
     const isiOS = /iP(hone|od|ad)/.test(navigator.platform) ||
                   (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
     if (isiOS) {
-      note.textContent = 'On iOS browsers, system vibration may not be available. We provide a subtle fallback.';
+      note.textContent = 'iOS: Uses system haptics on iOS 17.4+ via checkbox trick, audio fallback otherwise.';
     }
 
     ['touchstart', 'mousedown'].forEach(evt => {
