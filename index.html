@@ -102,25 +102,31 @@
       // This taps into system-level haptic events for form controls
       try {
         const el = document.createElement('input');
-        el.setAttribute('type', 'checkbox');
-        el.setAttribute('style', 'position:absolute;visibility:hidden;pointer-events:none;');
-        el.setAttribute('inputmode', 'none');
+        el.type = 'checkbox';
+        el.style.cssText = 'position:absolute;left:-9999px;top:-9999px;opacity:0;pointer-events:none;';
+        el.setAttribute('aria-hidden', 'true');
         el.setAttribute('tabindex', '-1');
 
-        el.addEventListener('click', () => {
-          el.remove(); // Clean up immediately
-        });
-
+        // Add to DOM first
         document.body.appendChild(el);
-        el.focus();
-        el.click();
         
-        // Cleanup fallback in case click event doesn't fire
+        // Trigger focus and click in sequence
+        el.focus();
+        
+        // Use setTimeout to ensure focus happens first
         setTimeout(() => {
-          if (document.body.contains(el)) el.remove();
-        }, 100);
+          el.click();
+          
+          // Clean up after a brief delay
+          setTimeout(() => {
+            if (document.body.contains(el)) {
+              el.remove();
+            }
+          }, 50);
+        }, 10);
+        
       } catch (e) {
-        // Silently fail if checkbox trick doesn't work
+        console.log('iOS checkbox haptic failed:', e);
       }
     }
 
@@ -131,7 +137,13 @@
     const isiOS = /iP(hone|od|ad)/.test(navigator.platform) ||
                   (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
     if (isiOS) {
-      note.textContent = 'iOS: Uses system haptics on iOS 17.4+ via checkbox trick, audio fallback otherwise.';
+      // Detect iOS version for debugging
+      const iosVersion = navigator.userAgent.match(/OS (\d+)_(\d+)/);
+      const version = iosVersion ? `${iosVersion[1]}.${iosVersion[2]}` : 'unknown';
+      note.textContent = `iOS ${version}: System haptics on 17.4+ via checkbox trick, audio fallback otherwise.`;
+      
+      // Debug info
+      console.log('iOS detected:', { version, userAgent: navigator.userAgent });
     }
 
     ['touchstart', 'mousedown'].forEach(evt => {
