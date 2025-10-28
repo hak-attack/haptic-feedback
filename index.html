@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0ea5e9" />
+  <title>Haptic here</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* iOS tap highlight tweak */
+    button, a, input { -webkit-tap-highlight-color: rgba(0,0,0,0); }
+    /* Simple press animation */
+    .pressing { transform: translateY(1px) scale(0.99); filter: brightness(0.98); }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
+  <main class="min-h-screen flex items-center justify-center p-6 md:p-10" style="padding-bottom: calc(env(safe-area-inset-bottom) + 24px); padding-top: calc(env(safe-area-inset-top) + 24px);">
+    <div class="w-full max-w-md text-center">
+      <h1 class="text-3xl md:text-4xl font-bold tracking-tight mb-6">Haptic demo</h1>
+      <p class="text-slate-600 mb-10">Tap the button below. Designed for iPhone 12 and responsive on all screens.</p>
+
+      <button id="haptic-btn" class="w-full md:w-auto inline-flex items-center justify-center px-8 py-4 text-base md:text-lg font-semibold rounded-xl bg-sky-500 text-white shadow-lg shadow-sky-500/20 hover:bg-sky-600 active:bg-sky-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-400 transition will-change-transform select-none">
+        Haptic here
+      </button>
+
+      <p id="note" class="mt-6 text-xs text-slate-500"></p>
+    </div>
+  </main>
+
+  <script>
+    // Minimal, no-build Tailwind setup via CDN already included
+    // Haptics: Prefer Vibration API where available (primarily Android). iOS WebKit historically lacks it.
+    // Provide graceful fallbacks: subtle click sound via WebAudio + micro animation.
+
+    let audioContext = null;
+    let unlocked = false;
+
+    function ensureAudioContext() {
+      if (!audioContext) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (Ctx) audioContext = new Ctx();
+      }
+      return audioContext;
+    }
+
+    function unlockAudio() {
+      const ctx = ensureAudioContext();
+      if (!ctx || unlocked) return;
+      try {
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.connect(ctx.destination);
+        if (ctx.state === 'suspended') ctx.resume();
+        src.start(0);
+        unlocked = true;
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    function playClickSound(durationMs = 25, frequency = 220) {
+      const ctx = ensureAudioContext();
+      if (!ctx) return;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.15, ctx.currentTime + 0.005);
+      const endTime = ctx.currentTime + durationMs / 1000;
+      gain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(endTime);
+    }
+
+    function vibrate(pattern) {
+      try {
+        if (navigator.vibrate) return navigator.vibrate(pattern);
+      } catch (e) {
+        // ignore
+      }
+      return false;
+    }
+
+    function doHaptic() {
+      // Try a short crisp pattern
+      const didVibrate = vibrate([8, 16, 8]);
+      if (!didVibrate) {
+        // Fallback: quick audio click as tactile proxy + tiny visual press effect
+        playClickSound(18, 240);
+      }
+    }
+
+    const btn = document.getElementById('haptic-btn');
+    const note = document.getElementById('note');
+
+    // On iOS, Vibration API may be unavailable; show a subtle note
+    const isiOS = /iP(hone|od|ad)/.test(navigator.platform) ||
+                  (navigator.userAgent.includes('Mac') && 'ontouchend' in document);
+    if (isiOS) {
+      note.textContent = 'On iOS browsers, system vibration may not be available. We provide a subtle fallback.';
+    }
+
+    ['touchstart', 'mousedown'].forEach(evt => {
+      window.addEventListener(evt, unlockAudio, { once: true, passive: true });
+    });
+
+    btn.addEventListener('click', () => {
+      btn.classList.add('pressing');
+      doHaptic();
+      setTimeout(() => btn.classList.remove('pressing'), 90);
+    });
+  </script>
+</body>
+</html>
+
+
